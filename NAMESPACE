@@ -2,6 +2,7 @@
 
 export(get_summary)
 export(get_summary_by_group)
+export(retiex_summary_by_time)
 export(style_percent)
 export(style_yen)
 importFrom(magrittr,"%>%")
