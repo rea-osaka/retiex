@@ -136,47 +136,6 @@ get_summary_by_rolling_quarter <-
 # ローカル関数
 #######################################################################
 
-# 四半期のみ
-# TODO 月毎のものもつくる
-local_rolling_tranceform <- function(df, nse_date_col){
-
-
-  # `[`や`[[`演算子の引数に列名を用いる場合
-  # 文字列ではなくシンボルで受け取る場合に
-  # 工夫が必要
-  # dplyerの中でないので、!!できない
-  date_col_name <- rlang::enquo(nse_date_col)
-  date_vector <- df %>%
-    dplyr::select(!!date_col_name) %>%
-    .[[1]]
-
-  # 四半期期首日付に変換した日付列を追加
-  df_with_date <- df %>%
-    dplyr::mutate(
-      date = classify_quarter(date_vector)
-    )
-
-  # 最小から最大の連続日付ベクトル
-  # 最新から古いものの順に並べる
-  term <-
-    seq_date_by_quarter(min(date_vector),max(date_vector)) %>%
-    sort(decreasing = TRUE)
-
-  ans <- NULL
-
-  for(i in 1:(length(term)-3)){
-    tmp_data <- df_with_date %>%
-      dplyr::filter(date <= term[[i]],
-                    date > term[[i]] - months(12)) %>%
-      dplyr::mutate(roll_label = term[[i]])
-
-    ans <- dplyr::bind_rows(ans, tmp_data)
-  }
-
-  return(ans)
-}
-
-
 # ローカル関数
 # 期間毎のサマリーを作成するための
 # 共通関数
