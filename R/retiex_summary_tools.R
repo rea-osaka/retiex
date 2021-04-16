@@ -50,12 +50,3 @@ retiex_rolling_summary <- function(reti_data){
 
   return(ans)
 }
-
-
-###############################################################
-# ローカル関数
-###############################################################
-local_roll_term_string <- function(ts){
-  ans <- vector("character", length(ts))
-  return(ans)
-}
