@@ -1,0 +1,244 @@
+---
+title: "retiex-vignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{retiex-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(reti)
+library(retiex)
+library(tidyverse)
+
+# 国土交通省が公表する取引価格情報をretiで取り込む
+# 取引価格情報のダウンロードページは以下URL
+# https://www.land.mlit.go.jp/webland/download.html
+
+#hirakata <- 
+#  reti::reti_read_LB("27_Osaka Prefecture_20053_20211.csv") %>% 
+#  dplyr::filter(t_date >= "2015-01-01")
+#
+#save(hirakata, file = "hirakata.rda")
+
+load("hirakata.rda")
+
+reti_data <- hirakata
+
+```
+
+## retiexの使い方
+
+retiを利用して取り込んだ取引価格情報データについて、
+簡単に時系列データとして分析を行うためのツール。
+
+また、retiデータ以外の一般データでも、
+時点列と対象列から期間毎要約統計量を作成することが出来る。
+
+
+
+## retiデータを対象とする関数
+
+### 各期間毎の「取引総額」の要約統計量
+
+`retiex_summary()`関数は、
+retiデータから、「取引総額」について、
+年毎、または、四半期毎の要約統計量のデータフレームを作成する。
+
+
+```{r}
+reti_data %>% 
+  retiex_summary()
+```
+
+
+`retiex_rolling_summary()`関数は、
+retiデータから、「取引総額」について、
+１年周期の四半期毎要約統計量（いわゆる移動平均等）の
+データフレームを作成する。
+
+```{r}
+reti_data %>% 
+  retiex_rolling_summary()
+```
+
+
+### 推定単価について
+
+retiの土地建物一体データについては、
+土地単価の数値がない。
+
+そこで、`retiex_add_assumption_land_unit_price()` 関数で
+推定土地単価の列を追加出来るようにした。
+
+推定土地単価計算の大まかな流れは、
+建物の単価と建築年数から建物価格を推定し、
+これを一体価格から除いた額を土地数量で除して、
+土地単価を推定するものである。
+
+そして、この「推定土地単価」についての要約統計量を作成する関数が以下のもの。
+
+- retiex_rolling_summary_of_alup()
+- retiex_summary_of_alup()
+
+いずれも、土地建物のretiデータと、
+想定する建物単価、及び、経済的耐用年数を渡すことで、
+推定土地単価を計算し、それについての要約統計量を計算してくれる。
+
+
+```{r}
+reti_data %>% 
+  retiex_summary_of_alup(building_unit_cost = 150000, building_durability = 40)
+```
+
+
+
+## 要約統計量を計算する一般関数
+
+### 要約統計量を求める関数
+
+各期間毎（月、四半期、年、１年周期四半期）の要約統計量を計算し、
+結果をデータフレームとして返す。
+引数には、元のデータと、その中の対象とするデータ列名、時点がある列名を指定
+
+- get_summary_by_year()
+- get_summary_by_quarter()
+- get_summary_by_month()
+- get_summary_by_rolling_quarter()
+
+```{r}
+# 土地面積を対象とした年毎の要約統計推移
+reti_data %>% 
+  dplyr::filter(!is.na(land_size)) %>% 
+  get_summary_by_year(nse_summary_col = land_size, nse_date_col = t_date)
+```
+
+
+これに加えて、単純にある列の要約統計量と
+ある列について任意の列内容でのグルーピングでの要約統計量を作成する関数。
+
+- get_summary()
+- get_summary_by_group()
+
+```{r}
+# 土地面積を対象とした,種別毎の要約統計量
+reti_data %>% 
+  dplyr::filter(!is.na(land_size)) %>% 
+  get_summary_by_group(target_col_name = land_size, group_col_name = `地域`)
+```
+
+
+### 対前年比、対前年差の列を追加する関数
+
+要約統計量を計算する関数の結果として得たデータフレームを渡すと、
+対前年比、対前年比（差分）、対前年差を計算
+
+- add_change_rate_cols()
+- add_change_rate_diff_cols()
+- add_change_diff_cols()
+
+
+```{r}
+# 土地面積を対象とした年毎の要約統計推移に
+# 前年比列を追加する
+reti_data %>% 
+  dplyr::filter(!is.na(land_size)) %>% 
+  get_summary_by_year(nse_summary_col = land_size, nse_date_col = t_date) %>% 
+  add_change_rate_cols()
+```
+
+
+
+## 期間計算
+
+期間計算のツール。
+２つの日付から、月、四半期での期間を計算する関数。
+
+- calc_month_term()
+- calc_quarter_term()
+
+
+## 月毎、年毎、四半期毎への変換
+
+通常の日付を月毎、年毎、四半期毎の日付へ変換する。
+
+- classify_month()
+- classify_quarter()
+- classify_year()
+
+月毎の場合は、各月の１日、年毎は各年の１月１日、
+四半期毎は、各期の期首である１月１日、４月１日、７月１日、１０月１日に変換する。
+
+これを新たな列として追加することで、各期毎のグルーピングが出来るようになる。
+
+
+## 連続する日付データの作成
+
+月、年、四半期の期首日で連続する時点データを作成する関数。
+
+- seq_date_by_month()
+- seq_date_by_quarter()
+- seq_date_by_year()
+
+既存データから期間を作成すると、データがない期間等が把握できないので、
+この関数を使って、連続日付データを得ることで抜けの確認等に活用や、
+連続性の確保（ファクターの全要素のように）の手助けになるように使う。
+
+
+## 表示用ツール
+
+数値を人が読みやすい形式で出力するための関数。
+よく使うものを関数化した。
+
+
+- style_percent()
+- style_yen()
+- style_quarter_date()
+- style_rolling_term_quarter()
+- transform_quarter_rolling_format()
+
+
+
+`style_percent()`関数でのパーセント表示は
+diff引数でプラスマイナスの表示のオンオフが出来る
+
+```{r}
+style_percent(0.103,keta = 2)
+```
+```{r}
+style_percent(0.103,keta = 2,diff = F)
+```
+
+金額関係の関数である`style_yen()`関数は、
+カンマを追加し、unit引数で単位を任意のものに出来る。
+
+```{r}
+style_yen(123456, unit = "円／㎡")
+```
+また、keta引数と合わせて、千や百万表示に変えることが出来る。
+
+```{r}
+style_yen(123456, keta =3, unit = "千円")
+```
+
+四半期関係の表示は、`style_quarter_date()`と
+`style_rolling_term_quarter()`で行える。
+
+```{r}
+style_quarter_date(as.Date("2020-06-15"))
+```
+
+`transform_quarter_rolling_format()`については、入力日付の期が最終期
+
+```{r}
+style_rolling_term_quarter(as.Date("2020-06-15"))
+```
+
